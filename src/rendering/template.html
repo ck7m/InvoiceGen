@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tax Invoice - {{ invoice.invoice_number }}</title>
+<style>
+    @page {
+        size: A4 portrait;
+        margin: 10mm 10mm 10mm 10mm;
+    }
+    
+    body {
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        line-height: 1.3;
+        color: #111;
+        margin: 0;
+        padding: 0;
+    }
+
+    .invoice-box {
+        width: 100%;
+        border: 1px solid #333;
+        box-sizing: border-box;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    td, th {
+        border: 1px solid #333;
+        padding: 4px 5px;
+        vertical-align: top;
+        box-sizing: border-box;
+    }
+
+    .company-title {
+        font-size: 13pt;
+        font-weight: bold;
+        color: #002b49;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 2px;
+    }
+
+    .invoice-title {
+        font-size: 15pt;
+        font-weight: bold;
+        text-align: right;
+        color: #b30000;
+        text-transform: uppercase;
+    }
+
+    .section-heading {
+        font-weight: bold;
+        background-color: #f2f4f7;
+        font-size: 7.5pt;
+        text-transform: uppercase;
+        color: #333;
+        padding: 3px 5px;
+    }
+
+    /* Fixed 10-column widths totaling exactly 100% */
+    .col-sl       { width: 4%; text-align: center; }
+    .col-desc     { width: 32%; word-break: break-word; white-space: pre-wrap; text-align: left; }
+    .col-hsn      { width: 10%; text-align: center; }
+    .col-qty      { width: 6%; text-align: right; }
+    .col-rate     { width: 9.5%; text-align: right; }
+    .col-cgst-pct { width: 6%; text-align: right; }
+    .col-cgst-amt { width: 8.5%; text-align: right; }
+    .col-sgst-pct { width: 6%; text-align: right; }
+    .col-sgst-amt { width: 8.5%; text-align: right; }
+    .col-amount   { width: 9.5%; text-align: right; }
+
+    .item-batch {
+        font-size: 7pt;
+        color: #555;
+        margin-top: 2px;
+        font-style: italic;
+        font-weight: normal;
+    }
+
+    .items-table thead {
+        display: table-header-group;
+    }
+
+    .items-table tr {
+        page-break-inside: avoid;
+    }
+
+    .items-table th {
+        background-color: #002b49;
+        color: #ffffff;
+        font-weight: bold;
+        font-size: 7.2pt;
+        text-transform: uppercase;
+        text-align: center;
+        padding: 5px 3px;
+    }
+
+    .text-right {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .text-center {
+        text-align: center;
+    }
+
+    .text-left {
+        text-align: left;
+    }
+
+    .bold {
+        font-weight: bold;
+    }
+
+    .words-box {
+        background-color: #fcfcfc;
+        font-style: italic;
+        padding: 5px 6px;
+        line-height: 1.35;
+        font-size: 7.8pt;
+    }
+
+    .footer-section {
+        page-break-inside: avoid;
+        margin-top: -1px;
+    }
+</style>
+</head>
+<body>
+
+<div class="invoice-box">
+    <!-- Header: Supplier details & Invoice title -->
+    <table class="header-table">
+        <tr>
+            <td style="width: 58%; padding: 6px 8px;">
+                <div class="company-title">{{ invoice.company.company_name }}</div>
+                <div>{{ invoice.company.address }}</div>
+                <div><strong>GSTIN:</strong> {{ invoice.company.gstin }} &nbsp;|&nbsp; <strong>PAN:</strong> {{ invoice.company.pan }}</div>
+                <div><strong>State:</strong> {{ invoice.company.state }} (Code: {{ invoice.company.state_code }})</div>
+                <div><strong>Phone:</strong> {{ invoice.company.phone }} &nbsp;|&nbsp; <strong>Email:</strong> {{ invoice.company.email }}{% if invoice.company.website %} &nbsp;|&nbsp; <strong>Web:</strong> {{ invoice.company.website }}{% endif %}</div>
+            </td>
+            <td style="width: 42%; vertical-align: middle; padding: 6px 8px;">
+                <div class="invoice-title">TAX INVOICE</div>
+                <div style="text-align: right; margin-top: 4px; line-height: 1.4;">
+                    <strong>Invoice No:</strong> {{ invoice.invoice_number }}<br>
+                    <strong>Invoice Date:</strong> {{ invoice.invoice_date }}<br>
+                    <strong>Place of Supply:</strong> {{ invoice.customer.customer_state or invoice.company.state }}
+                </div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Buyer & Consignee details -->
+    <table class="meta-table" style="margin-top: -1px;">
+        <tr class="section-heading">
+            <td style="width: 50%;">Details of Buyer / Billed To</td>
+            <td style="width: 50%;">Details of Consignee / Shipped To</td>
+        </tr>
+        <tr>
+            <td style="padding: 5px 6px;">
+                <strong>Name:</strong> {{ invoice.customer.customer_name }}<br>
+                <strong>Address:</strong> {{ invoice.customer.customer_address }}<br>
+                {% if invoice.customer.customer_gstin %}
+                <strong>GSTIN:</strong> {{ invoice.customer.customer_gstin }}<br>
+                {% endif %}
+                <strong>State:</strong> {{ invoice.customer.customer_state }} {% if invoice.customer.customer_state_code %}(Code: {{ invoice.customer.customer_state_code }}){% endif %}
+            </td>
+            <td style="padding: 5px 6px;">
+                <strong>Name:</strong> {{ invoice.customer.customer_name }}<br>
+                <strong>Address:</strong> {{ invoice.customer.customer_address }}<br>
+                {% if invoice.customer.customer_gstin %}
+                <strong>GSTIN:</strong> {{ invoice.customer.customer_gstin }}<br>
+                {% endif %}
+                <strong>State:</strong> {{ invoice.customer.customer_state }} {% if invoice.customer.customer_state_code %}(Code: {{ invoice.customer.customer_state_code }}){% endif %}
+            </td>
+        </tr>
+    </table>
+
+    <!-- Item Table with Header, Body, and Aligned Totals -->
+    <table class="items-table" style="margin-top: -1px;">
+        <thead>
+            <tr>
+                <th class="col-sl">#</th>
+                <th class="col-desc">Description of Goods / Services</th>
+                <th class="col-hsn">HSN/SAC</th>
+                <th class="col-qty">Qty</th>
+                <th class="col-rate">Rate (₹)</th>
+                <th class="col-cgst-pct">CGST %</th>
+                <th class="col-cgst-amt">CGST (₹)</th>
+                <th class="col-sgst-pct">SGST %</th>
+                <th class="col-sgst-amt">SGST (₹)</th>
+                <th class="col-amount">Amount (₹)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in invoice.items %}
+            <tr>
+                <td class="col-sl text-center">{{ item.serial_number }}</td>
+                <td class="col-desc">
+                    {{ item.description }}
+                    {% if item.batch_number %}
+                    <div class="item-batch">Batch: {{ item.batch_number }}</div>
+                    {% endif %}
+                </td>
+                <td class="col-hsn text-center">{{ item.hsn_sac }}</td>
+                <td class="col-qty text-right">{{ "%.2f"|format(item.quantity) }}</td>
+                <td class="col-rate text-right">{{ "%.2f"|format(item.rate) }}</td>
+                <td class="col-cgst-pct text-right">{{ "%.2f"|format(item.cgst_percent) }}%</td>
+                <td class="col-cgst-amt text-right">{{ "%.2f"|format(item.cgst_amount) }}</td>
+                <td class="col-sgst-pct text-right">{{ "%.2f"|format(item.sgst_percent) }}%</td>
+                <td class="col-sgst-amt text-right">{{ "%.2f"|format(item.sgst_amount) }}</td>
+                <td class="col-amount text-right bold">{{ "%.2f"|format(item.amount_with_tax) }}</td>
+            </tr>
+            {% endfor %}
+            <!-- Totals row directly inside items table for 100% column alignment -->
+            <tr style="background-color: #f7f9fa;">
+                <td colspan="5" class="bold text-right" style="padding: 5px 6px;">TOTAL TAXABLE VALUE &amp; TAXES:</td>
+                <td class="text-center" style="color: #666; font-size: 7pt;">--</td>
+                <td class="bold text-right">₹ {{ "%.2f"|format(invoice.total_cgst) }}</td>
+                <td class="text-center" style="color: #666; font-size: 7pt;">--</td>
+                <td class="bold text-right">₹ {{ "%.2f"|format(invoice.total_sgst) }}</td>
+                <td class="bold text-right" style="background-color: #eef2f6;">₹ {{ "%.2f"|format(invoice.grand_total) }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Amount in Words -->
+    <table style="margin-top: -1px;">
+        <tr>
+            <td class="words-box">
+                <div><strong>Amount in Words:</strong> {{ invoice.amount_in_words }}</div>
+                <div style="margin-top: 2px;"><strong>Tax Amount in Words:</strong> {{ invoice.tax_amount_in_words }}</div>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Footer: Bank Details, Declaration & Generous Signature Space -->
+    <div class="footer-section">
+        <table style="margin-top: -1px;">
+            <tr>
+                <td style="width: 50%; padding: 6px 8px;">
+                    <div class="bold" style="margin-bottom: 2px; color: #002b49;">Bank Details for NEFT / RTGS:</div>
+                    <div><strong>Bank Name:</strong> {{ invoice.company.bank_name }}</div>
+                    <div><strong>Account No:</strong> {{ invoice.company.account_number }}</div>
+                    <div><strong>Branch:</strong> {{ invoice.company.branch }}</div>
+                    <div><strong>IFSC Code:</strong> {{ invoice.company.ifsc }}</div>
+                </td>
+                <td style="width: 50%; padding: 6px 8px;">
+                    <div class="bold" style="margin-bottom: 2px; color: #002b49;">Declaration:</div>
+                    <div style="font-size: 7.5pt; color: #444; line-height: 1.3;">{{ invoice.company.declaration }}</div>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 8px; vertical-align: bottom; font-size: 7.2pt; color: #666;">
+                    * This is a Computer Generated Invoice.
+                </td>
+                <td style="padding: 8px; text-align: right;">
+                    <div class="bold" style="color: #002b49;">For {{ invoice.company.company_name }}</div>
+                    <!-- Generous physical signature and seal space -->
+                    <div style="height: 45px;"></div>
+                    <div style="font-size: 8pt; font-weight: bold; border-top: 1px dashed #999; display: inline-block; padding-top: 4px; min-width: 150px; text-align: center;">
+                        {{ invoice.company.authorised_signatory or "Authorised Signatory" }}
+                    </div>
+                </td>
+            </tr>
+        </table>
+    </div>
+</div>
+
+</body>
+</html>

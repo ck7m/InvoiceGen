@@ -1,0 +1,1 @@
+# SKN Invoice Generator package
