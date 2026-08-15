@@ -51,9 +51,13 @@ coll = COLLECT(
     upx_exclude=[],
     name='SKN_Invoice_Generator',
 )
-app = BUNDLE(
-    coll,
-    name='SKN_Invoice_Generator.app',
-    icon=None,
-    bundle_identifier=None,
-)
+import sys
+
+if sys.platform == 'darwin':
+    app = BUNDLE(
+        coll,
+        name='SKN_Invoice_Generator.app',
+        icon=None,
+        bundle_identifier=None,
+    )
+

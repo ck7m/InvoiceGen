@@ -8,45 +8,77 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            artifact_name: SKN_Invoice_Generator_Windows
-            output_dir: dist/SKN_Invoice_Generator
-          - os: macos-latest
-            artifact_name: SKN_Invoice_Generator_macOS
-            output_dir: dist/SKN_Invoice_Generator.app
-
+  build-windows:
+    name: Build Windows Executable
+    runs-on: windows-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: "pip"
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
+      - name: Install Dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller pytest
+
+      - name: Run Tests
+        shell: bash
+        run: |
+          pytest -v
+
+      - name: Build Windows Executable
+        shell: bash
+        run: |
+          python scripts/build_executable.py
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SKN_Invoice_Generator_Windows
+          path: dist/SKN_Invoice_Generator/
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS Application
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
 
       - name: Install Dependencies
         run: |
-          uv sync --extra dev
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller pytest
 
-      - name: Run Automated Tests
+      - name: Run Tests
         run: |
-          uv run pytest -v
+          pytest -v
 
-      - name: Build Standalone Executable
+      - name: Build macOS Application Bundle
         run: |
-          uv run python scripts/build_executable.py
+          python scripts/build_executable.py
 
-      - name: Upload Build Artifact
+      - name: Upload macOS Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.output_dir }}
+          name: SKN_Invoice_Generator_macOS
+          path: dist/SKN_Invoice_Generator.app
+          if-no-files-found: error
