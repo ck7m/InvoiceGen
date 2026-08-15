@@ -61,12 +61,16 @@ idna==3.18
     #   requests
 iniconfig==2.3.0
     # via pytest
+jinja2==3.1.6
+    # via skn-invoice-gen
 lxml==6.1.1
     # via
     #   pyhanko
     #   svglib
 macholib==1.16.4 ; sys_platform == 'darwin'
     # via pyinstaller
+markupsafe==3.0.3
+    # via jinja2
 msgpack==1.2.1
     # via flet
 oauthlib==3.3.1 ; sys_platform != 'emscripten'
