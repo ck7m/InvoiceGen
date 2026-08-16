@@ -2,9 +2,12 @@ from PyInstaller.utils.hooks import collect_all
 
 datas = [('src/rendering/template.html', 'src/rendering')]
 binaries = []
-hiddenimports = []
+hiddenimports = [
+    'flet_desktop',
+    'flet_desktop.version',
+]
 
-for package_name in ['flet', 'flet_desktop', 'weasyprint', 'jinja2']:
+for package_name in ['flet', 'flet_desktop', 'weasyprint', 'jinja2', 'xhtml2pdf', 'reportlab']:
     pkg_datas, pkg_binaries, pkg_hidden = collect_all(package_name)
     datas += pkg_datas
     binaries += pkg_binaries
@@ -12,7 +15,7 @@ for package_name in ['flet', 'flet_desktop', 'weasyprint', 'jinja2']:
 
 a = Analysis(
     ['src/main.py'],
-    pathex=[],
+    pathex=['.'],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

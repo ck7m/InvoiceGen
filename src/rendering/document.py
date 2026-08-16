@@ -7,17 +7,23 @@ from src.domain.gst_engine import calculate_invoice
 class InvoiceDocumentRenderer:
     def __init__(self, template_dir: str = None):
         if template_dir is None:
+            candidates = []
             if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-                template_dir = os.path.join(sys._MEIPASS, "src", "rendering")
-            else:
-                template_dir = os.path.dirname(os.path.abspath(__file__))
+                candidates.append(os.path.join(sys._MEIPASS, "src", "rendering"))
+                candidates.append(os.path.join(sys._MEIPASS, "rendering"))
+                candidates.append(sys._MEIPASS)
             
-            # Fallback if not found in calculated path
-            if not os.path.exists(os.path.join(template_dir, "template.html")):
-                exe_dir = os.path.dirname(sys.executable)
-                alt_dir = os.path.join(exe_dir, "src", "rendering")
-                if os.path.exists(os.path.join(alt_dir, "template.html")):
-                    template_dir = alt_dir
+            exe_dir = os.path.dirname(sys.executable)
+            candidates.append(os.path.join(exe_dir, "_internal", "src", "rendering"))
+            candidates.append(os.path.join(exe_dir, "src", "rendering"))
+            candidates.append(os.path.dirname(os.path.abspath(__file__)))
+            candidates.append(os.path.join(os.getcwd(), "src", "rendering"))
+
+            template_dir = os.path.dirname(os.path.abspath(__file__))
+            for cand in candidates:
+                if cand and os.path.exists(os.path.join(cand, "template.html")):
+                    template_dir = cand
+                    break
 
         self.env = Environment(loader=FileSystemLoader(template_dir))
         self.template = self.env.get_template("template.html")
