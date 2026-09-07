@@ -166,3 +166,112 @@ def test_generate_pdf_10_items_with_long_descriptions(pdf_gen, tmp_path):
     assert os.path.exists(generated_path)
     assert os.path.getsize(generated_path) > 1500
 
+def test_pdf_rendered_html_uses_rs_symbol():
+    from src.rendering.document import InvoiceDocumentRenderer
+    from src.domain.models import Invoice, Customer, InvoiceItem
+    renderer = InvoiceDocumentRenderer()
+    invoice = Invoice(
+        invoice_number="SKN/2026-27/TEST-RS",
+        customer=Customer(customer_name="Test Customer"),
+        items=[InvoiceItem(description="Item 1", rate=Decimal("500.00"), quantity=Decimal("1"))],
+    )
+    from src.domain.gst_engine import calculate_invoice
+    calculate_invoice(invoice)
+    html = renderer.render_html(invoice)
+    assert "₹" not in html, "Rupee symbol '₹' must not be in exported PDF HTML"
+    assert "Rate (Rs)" in html
+    assert "Amount (Rs)" in html
+    assert "(Rs)" in html
+    # Total rows must not have "Rs " prefix
+    assert "Rs " not in html, "'Rs' prefix must be removed from the totals row"
+
+def test_pdf_layout_customizations():
+    from src.rendering.document import InvoiceDocumentRenderer
+    from src.domain.models import Invoice, Customer, InvoiceItem
+    renderer = InvoiceDocumentRenderer()
+    invoice = Invoice(
+        invoice_number="SKN/2026-27/TEST-LAYOUT",
+        po_number="PO-9988",
+        po_date="2026-08-10",
+        invoice_type="Original",
+        terms_of_payment="30 days Credit",
+        customer=Customer(customer_name="Alpha Corp", customer_state="Tamilnadu"),
+        items=[InvoiceItem(description="Item 1", batch_number="SN-1001", rate=Decimal("1000.00"), quantity=Decimal("1"))],
+    )
+    html = renderer.render_html(invoice)
+
+    # 1. Declaration must be removed
+    assert "Declaration:" not in html, "Declaration must be removed from exported PDF"
+
+    # 2. Customer Seal & Signature must be present
+    assert "Customer Seal &amp; Signature:" in html or "Customer Seal & Signature:" in html
+
+    # 3. Place of Supply must be removed from TAX INVOICE section
+    assert "Place of Supply:" not in html
+
+    # 4. PO Number, PO Date, Invoice Type, Terms of Payment must be present
+    assert "PO-9988" in html
+    assert "2026-08-10" in html
+    assert "Invoice Type:" in html
+    assert "Original" in html
+    assert "Terms of Payment:" in html
+    assert "30 days Credit" in html
+
+    # 5. Authorised Signatory must be present; "For Sai Krishna Networks" removed from seal/sign section
+    assert "Authorised Signatory" in html
+    assert "For Sai Krishna Networks" not in html
+
+    # 6. Computer Generated Invoice must be removed
+    assert "Computer Generated Invoice" not in html
+
+    # 7. Terms & Conditions must be present above customer seal and signature in dedicated row
+    assert "Terms &amp; Conditions:" in html or "Terms & Conditions:" in html
+    assert "Goods once sold cannot taken back/Exchange" in html
+    assert "Subject to Tamil Nadu Jurisdiction" in html
+
+    # 8. Bank details moved to Amount in words row
+    assert "Bank Details for NEFT / RTGS:" in html
+    assert "Bank Name:" in html
+    assert "Amount in Words:" in html
+
+    # 9. Serial No used instead of Batch
+    assert "Serial No: SN-1001" in html
+
+    # 10. Web moved to new line in company header
+    assert "Web:" in html
+    assert "<div style=\"line-height: 1.15;\"><strong>Web:</strong>" in html
+
+    # 11. Closing section wrapping prevents break after totals
+    assert 'class="closing-section"' in html
+
+def test_pdf_three_copies_export(tmp_path):
+    from copy import deepcopy
+    from src.domain.models import Invoice, Customer, InvoiceItem
+    from src.pdf.generator import PDFGenerator
+    pdf_gen = PDFGenerator()
+    base_inv = Invoice(
+        invoice_number="SKN/2026-27/COPIES-TEST",
+        po_number="PO-123",
+        po_date="2026-08-15",
+        terms_of_payment="100% Advance",
+        customer=Customer(customer_name="Test Enterprise"),
+        items=[InvoiceItem(description="Component", rate=Decimal("5000.00"), quantity=Decimal("1"))],
+    )
+    copies = []
+    for c_type in ["Original", "Duplicate", "Transport"]:
+        copy_inv = deepcopy(base_inv)
+        copy_inv.invoice_type = c_type
+        copies.append(copy_inv)
+
+    out_file = str(tmp_path / "three_copies.pdf")
+    generated = pdf_gen.generate_pdf(base_inv, out_file, copies=copies)
+    assert os.path.exists(generated)
+    assert os.path.getsize(generated) > 2000
+
+    html = pdf_gen.renderer.render_html(base_inv, copies=copies)
+    assert "Original" in html
+    assert "Duplicate" in html
+    assert "Transport" in html
+    assert html.count('class="invoice-box page-break"') == 2
+    assert html.count('class="invoice-box ') == 3
+

@@ -8,6 +8,7 @@ from src.db.schema import (
     CREATE_COMPANY_TABLE,
     CREATE_INVOICES_TABLE,
     CREATE_INVOICE_ITEMS_TABLE,
+    CREATE_CUSTOMERS_TABLE,
 )
 
 class InvoiceRepository:
@@ -35,6 +36,7 @@ class InvoiceRepository:
             cursor.execute(CREATE_COMPANY_TABLE)
             cursor.execute(CREATE_INVOICES_TABLE)
             cursor.execute(CREATE_INVOICE_ITEMS_TABLE)
+            cursor.execute(CREATE_CUSTOMERS_TABLE)
             
             # Check if website column exists in company_settings (for existing DB migrations)
             cursor.execute("PRAGMA table_info(company_settings);")
@@ -42,6 +44,18 @@ class InvoiceRepository:
             if "website" not in columns and len(columns) > 0:
                 try:
                     cursor.execute("ALTER TABLE company_settings ADD COLUMN website TEXT;")
+                except Exception:
+                    pass
+
+            # Check if new invoice columns exist (for existing DB migrations)
+            cursor.execute("PRAGMA table_info(invoices);")
+            inv_cols = [row["name"] for row in cursor.fetchall()]
+            if "po_number" not in inv_cols and len(inv_cols) > 0:
+                try:
+                    cursor.execute("ALTER TABLE invoices ADD COLUMN po_number TEXT DEFAULT '';")
+                    cursor.execute("ALTER TABLE invoices ADD COLUMN po_date TEXT DEFAULT '';")
+                    cursor.execute("ALTER TABLE invoices ADD COLUMN invoice_type TEXT DEFAULT 'Original';")
+                    cursor.execute("ALTER TABLE invoices ADD COLUMN terms_of_payment TEXT DEFAULT '100% Advance';")
                 except Exception:
                     pass
                     
@@ -122,7 +136,8 @@ class InvoiceRepository:
                 cursor.execute(
                     """
                     UPDATE invoices SET
-                        invoice_date = ?, customer_name = ?, customer_address = ?,
+                        invoice_date = ?, po_number = ?, po_date = ?, invoice_type = ?, terms_of_payment = ?,
+                        customer_name = ?, customer_address = ?,
                         customer_gstin = ?, customer_pan = ?, customer_state = ?,
                         customer_state_code = ?, subtotal = ?, total_cgst = ?,
                         total_sgst = ?, total_tax = ?, grand_total = ?,
@@ -131,6 +146,10 @@ class InvoiceRepository:
                     """,
                     (
                         invoice.invoice_date,
+                        invoice.po_number or "",
+                        invoice.po_date or "",
+                        invoice.invoice_type or "Original",
+                        invoice.terms_of_payment or "100% Advance",
                         invoice.customer.customer_name,
                         invoice.customer.customer_address,
                         invoice.customer.customer_gstin,
@@ -152,15 +171,20 @@ class InvoiceRepository:
                 cursor.execute(
                     """
                     INSERT INTO invoices (
-                        invoice_number, invoice_date, customer_name, customer_address,
+                        invoice_number, invoice_date, po_number, po_date, invoice_type, terms_of_payment,
+                        customer_name, customer_address,
                         customer_gstin, customer_pan, customer_state, customer_state_code,
                         subtotal, total_cgst, total_sgst, total_tax, grand_total,
                         amount_in_words, tax_amount_in_words
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                     """,
                     (
                         invoice.invoice_number,
                         invoice.invoice_date,
+                        invoice.po_number or "",
+                        invoice.po_date or "",
+                        invoice.invoice_type or "Original",
+                        invoice.terms_of_payment or "100% Advance",
                         invoice.customer.customer_name,
                         invoice.customer.customer_address,
                         invoice.customer.customer_gstin,
@@ -206,7 +230,15 @@ class InvoiceRepository:
                     ),
                 )
             conn.commit()
-            return invoice_id
+
+        # Save customer details to customers table
+        if invoice.customer and (invoice.customer.customer_name or invoice.customer.customer_gstin):
+            try:
+                self.save_customer(invoice.customer)
+            except Exception:
+                pass
+
+        return invoice_id
 
     def get_invoice_by_number(self, invoice_number: str) -> Optional[Invoice]:
         with self._get_connection() as conn:
@@ -215,6 +247,12 @@ class InvoiceRepository:
             row = cursor.fetchone()
             if not row:
                 return None
+
+            row_keys = row.keys()
+            po_number = row["po_number"] if "po_number" in row_keys and row["po_number"] else ""
+            po_date = row["po_date"] if "po_date" in row_keys and row["po_date"] else ""
+            invoice_type = row["invoice_type"] if "invoice_type" in row_keys and row["invoice_type"] else "Original"
+            terms_of_payment = row["terms_of_payment"] if "terms_of_payment" in row_keys and row["terms_of_payment"] else "100% Advance"
 
             company = self.get_company_settings()
             customer = Customer(
@@ -255,6 +293,10 @@ class InvoiceRepository:
             invoice = Invoice(
                 invoice_number=row["invoice_number"],
                 invoice_date=row["invoice_date"],
+                po_number=po_number,
+                po_date=po_date,
+                invoice_type=invoice_type,
+                terms_of_payment=terms_of_payment,
                 company=company,
                 customer=customer,
                 items=items,
@@ -342,4 +384,150 @@ class InvoiceRepository:
             cursor.execute("DELETE FROM invoices WHERE id = ?;", (invoice_id,))
             conn.commit()
             return True
+
+    def save_customer(self, customer: Customer) -> int:
+        """
+        Saves or updates customer info in the customers table.
+        """
+        if not customer.customer_name and not customer.customer_gstin:
+            return 0
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            existing = None
+            if customer.customer_gstin and customer.customer_gstin.strip():
+                cursor.execute(
+                    "SELECT id FROM customers WHERE customer_gstin = ? LIMIT 1;",
+                    (customer.customer_gstin.strip(),),
+                )
+                existing = cursor.fetchone()
+            if not existing and customer.customer_name and customer.customer_name.strip():
+                cursor.execute(
+                    "SELECT id FROM customers WHERE LOWER(customer_name) = LOWER(?) LIMIT 1;",
+                    (customer.customer_name.strip(),),
+                )
+                existing = cursor.fetchone()
+
+            if existing:
+                cust_id = existing["id"]
+                cursor.execute(
+                    """
+                    UPDATE customers
+                    SET customer_name = ?, customer_address = ?, customer_gstin = ?,
+                        customer_pan = ?, customer_state = ?, customer_state_code = ?,
+                        phone = ?, email = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?;
+                    """,
+                    (
+                        customer.customer_name.strip(),
+                        customer.customer_address.strip(),
+                        customer.customer_gstin.strip() if customer.customer_gstin else "",
+                        customer.customer_pan.strip() if customer.customer_pan else "",
+                        customer.customer_state.strip() if customer.customer_state else "",
+                        customer.customer_state_code.strip() if customer.customer_state_code else "",
+                        customer.phone.strip() if customer.phone else "",
+                        customer.email.strip() if customer.email else "",
+                        cust_id,
+                    ),
+                )
+                conn.commit()
+                return cust_id
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO customers (
+                        customer_name, customer_address, customer_gstin,
+                        customer_pan, customer_state, customer_state_code,
+                        phone, email
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (
+                        customer.customer_name.strip(),
+                        customer.customer_address.strip(),
+                        customer.customer_gstin.strip() if customer.customer_gstin else "",
+                        customer.customer_pan.strip() if customer.customer_pan else "",
+                        customer.customer_state.strip() if customer.customer_state else "",
+                        customer.customer_state_code.strip() if customer.customer_state_code else "",
+                        customer.phone.strip() if customer.phone else "",
+                        customer.email.strip() if customer.email else "",
+                    ),
+                )
+                conn.commit()
+                return cursor.lastrowid
+
+    def search_customers(self, query: str) -> List[Customer]:
+        """
+        Search saved customers by name or GSTIN (matches substring).
+        """
+        q = query.strip()
+        if not q or len(q) < 1:
+            return []
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            pattern = f"%{q}%"
+            cursor.execute(
+                """
+                SELECT * FROM customers
+                WHERE customer_name LIKE ? OR customer_gstin LIKE ?
+                ORDER BY updated_at DESC LIMIT 10;
+                """,
+                (pattern, pattern),
+            )
+            rows = cursor.fetchall()
+
+            # If no results in customers table, fallback to distinct customers in invoices table
+            if not rows:
+                cursor.execute(
+                    """
+                    SELECT DISTINCT customer_name, customer_address, customer_gstin,
+                           customer_pan, customer_state, customer_state_code, '' as phone, '' as email
+                    FROM invoices
+                    WHERE customer_name LIKE ? OR customer_gstin LIKE ?
+                    ORDER BY id DESC LIMIT 10;
+                    """,
+                    (pattern, pattern),
+                )
+                rows = cursor.fetchall()
+
+            customers = []
+            seen = set()
+            for r in rows:
+                key = (r["customer_name"] or "", r["customer_gstin"] or "")
+                if key in seen:
+                    continue
+                seen.add(key)
+                customers.append(
+                    Customer(
+                        customer_name=r["customer_name"] or "",
+                        customer_address=r["customer_address"] or "",
+                        customer_gstin=r["customer_gstin"] or "",
+                        customer_pan=r["customer_pan"] if "customer_pan" in r.keys() and r["customer_pan"] else "",
+                        customer_state=r["customer_state"] if "customer_state" in r.keys() and r["customer_state"] else "",
+                        customer_state_code=r["customer_state_code"] if "customer_state_code" in r.keys() and r["customer_state_code"] else "",
+                        phone=r["phone"] if "phone" in r.keys() and r["phone"] else "",
+                        email=r["email"] if "email" in r.keys() and r["email"] else "",
+                    )
+                )
+            return customers
+
+    def get_all_customers(self) -> List[Customer]:
+        """
+        Returns all saved customers ordered by name.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM customers ORDER BY customer_name ASC;")
+            rows = cursor.fetchall()
+            return [
+                Customer(
+                    customer_name=r["customer_name"] or "",
+                    customer_address=r["customer_address"] or "",
+                    customer_gstin=r["customer_gstin"] or "",
+                    customer_pan=r["customer_pan"] or "",
+                    customer_state=r["customer_state"] or "",
+                    customer_state_code=r["customer_state_code"] or "",
+                    phone=r["phone"] or "",
+                    email=r["email"] or "",
+                )
+                for r in rows
+            ]
 

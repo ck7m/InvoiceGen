@@ -26,7 +26,7 @@ def test_default_company_settings(tmp_path):
     assert settings.branch == "Main Branch, Guntur"
     assert settings.ifsc == "SBIN0001234"
     assert "actual price" in settings.declaration
-    assert settings.authorised_signatory == "For Sai Krishna Networks"
+    assert settings.authorised_signatory == "Authorised Signatory"
 
 def test_company_settings_persistence(tmp_path):
     db_file = str(tmp_path / "settings_test.db")
@@ -130,8 +130,8 @@ def test_company_settings_rendered_in_html_invoice(tmp_path):
     assert "MG Road Branch" in html
     assert "ICIC0000555" in html
 
-    # Verify declaration & signatory rendered dynamically
-    assert "All accounts subject to Guntur jurisdiction." in html
+    # Verify declaration is removed per Requirement 7 & signatory rendered dynamically
+    assert "All accounts subject to Guntur jurisdiction." not in html
     assert "Authorised Representative - SKN" in html
 
 def test_settings_view_validation(tmp_path):

@@ -28,7 +28,7 @@ class InvoiceDocumentRenderer:
         self.env = Environment(loader=FileSystemLoader(template_dir))
         self.template = self.env.get_template("template.html")
 
-    def render_html(self, invoice: Invoice) -> str:
+    def render_html(self, invoice: Invoice, copies: list = None) -> str:
         """
         Render the invoice into HTML string.
         Rule 3.4 & User Comment: The PDF/HTML renderer MUST receive an already calculated
@@ -36,4 +36,7 @@ class InvoiceDocumentRenderer:
         """
         # Ensure calculated fields exist if not already populated
         calculate_invoice(invoice)
-        return self.template.render(invoice=invoice)
+        if copies:
+            for c in copies:
+                calculate_invoice(c)
+        return self.template.render(invoice=invoice, copies=copies)

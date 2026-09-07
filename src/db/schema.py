@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS invoices (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     invoice_number TEXT UNIQUE NOT NULL,
     invoice_date TEXT NOT NULL,
+    po_number TEXT DEFAULT '',
+    po_date TEXT DEFAULT '',
+    invoice_type TEXT DEFAULT 'Original',
+    terms_of_payment TEXT DEFAULT '100% Advance',
     customer_name TEXT NOT NULL,
     customer_address TEXT NOT NULL,
     customer_gstin TEXT,
@@ -60,5 +64,22 @@ CREATE TABLE IF NOT EXISTS invoice_items (
     rate_with_tax TEXT NOT NULL,
     amount_with_tax TEXT NOT NULL,
     FOREIGN KEY(invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+);
+"""
+
+CREATE_CUSTOMERS_TABLE = """
+CREATE TABLE IF NOT EXISTS customers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_name TEXT NOT NULL,
+    customer_address TEXT NOT NULL,
+    customer_gstin TEXT,
+    customer_pan TEXT,
+    customer_state TEXT,
+    customer_state_code TEXT,
+    phone TEXT,
+    email TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(customer_name, customer_gstin)
 );
 """

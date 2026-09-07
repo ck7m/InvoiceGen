@@ -231,12 +231,12 @@ Do not assume every future invoice will always use 9% + 9%.
 
 Each invoice item must support:
 
-- Serial number
-- Description
-- Batch number
+- Serial number (row index)
+- Description of Goods / Services
+- Serial No (Batch / Serial No identifier, displayed as "Serial No" in UI and PDF)
 - HSN/SAC
-- Quantity
-- Rate per quantity
+- Quantity (automatically clears placeholder on focus/edit, defaults to 1.00)
+- Rate per quantity (automatically clears placeholder on focus/edit)
 - CGST %
 - SGST %
 
@@ -280,19 +280,19 @@ The application must never:
 
 The description cell must wrap.
 
-The row height must grow automatically.
+The row height must grow automatically. Compact padding (`2.5px 4px`) and line spacing are maintained for clean density and to prevent unnecessary page overflow.
 
 Example:
 
 ```text
-+----+------------------------------------+-------+
-| 1  | Dell Latitude Laptop              | 8471  |
-|    | Intel Core i7, 16GB RAM, 512GB    |       |
-|    | SSD, Windows 11 Pro, warranty     |       |
-+----+------------------------------------+-------+
++----+------------------------------------+-----------+-------+
+| 1  | Dell Latitude Laptop              | SN-10928  | 8471  |
+|    | Intel Core i7, 16GB RAM, 512GB    |           |       |
+|    | SSD, Windows 11 Pro, warranty     |           |       |
++----+------------------------------------+-----------+-------+
 ```
 
-Numeric columns retain their defined widths.
+Numeric columns retain their defined widths. Numeric inputs (Rate and Quantity) automatically clear placeholder zeros and default values on focus and edit to ensure clean numerical data entry without awkward backspacing or leading zeros.
 
 ---
 
@@ -302,32 +302,29 @@ The uploaded supplier invoice is the primary visual/reference document.
 
 The sample contains:
 
-- Supplier/company information
+- Supplier/company information (with Website rendered on its own dedicated line)
 - GSTIN
 - State and state code
-- Contact information
+- Contact information (Phone & Email)
 - Consignee / Ship To
 - Buyer / Bill To
 - Invoice number
 - Invoice date
-- Delivery/reference/order information
-- Payment/delivery fields
-- Item table
-- HSN/SAC
-- Quantity
-- Rate
-- Rate including tax
-- Amount
-- CGST
-- SGST
-- Tax totals
-- Amount in words
-- Tax amount in words
-- Declaration
+- PO Number and PO Date
+- Terms of Payment (100% Advance [default], 30 days Credit, 45 days credit)
+- Invoice Type (Original, Duplicate, Transport - selectable on export or 3-copy export)
+- Item table (with Rate (Rs), CGST (Rs), SGST (Rs), Amount (Rs) using "Rs" instead of unicode symbol for robust PDF rendering)
+- Item table headers explicitly use title-case "Rs" (not "RS")
+- Totals row displays clean numerical totals without "Rs" prefix
+- Amount in words and Bank details placed side-by-side in the same row
+- Terms & Conditions placed in its own dedicated row
+- Customer Seal & Signature and Authorised Signatory placed in a separate dedicated signature row with ample stamp/signing height
+- Page-break protection (`closing-section` with `page-break-inside: avoid`): any rows after the total table are never broken or split across pages
+- "New Invoice" resets all customer information and clears item details back to 1 fresh row, immediately refreshing the UI
 - Company PAN
-- Bank details
-- Authorised signatory
-- Computer-generated invoice statement
+- Customer Seal and Signature space (generous physical space with "Received in Good Condition" line)
+- Authorised signatory with seal/sign space (without company name at top of seal box)
+*(Note: Declaration and Computer-generated invoice statement are removed from exported PDF)*
 
 The application should reproduce the useful structure of this document while keeping the implementation maintainable.
 
@@ -430,23 +427,25 @@ Do not hard-code these values into the PDF template.
 ---
 
 # 12. Customer information
-
-Customer lookup is optional for the first prototype.
-
-The architecture should support it later.
-
-Potential customer fields:
-
-- Customer name
-- Address
-- GSTIN
-- PAN
-- State
-- State code
-- Phone
-- Email
-
-For the initial prototype, customer information may simply be entered into the invoice form.
+ 
+Customer information is persisted locally in SQLite (`customers` table) and auto-saved whenever an invoice is created/saved.
+ 
+- **Default State**: New invoices default to **Tamilnadu** (State Code `33`).
+- **Autocomplete & Non-Destructive Selection**:
+  - Entering Customer Name or GSTIN searches existing customers.
+  - Matches are presented in a compact, scrollable card (capped at 160px height so large result sets do not take over the screen).
+  - Clicking any match populates all customer fields (name, GSTIN, address, state).
+  - All customer fields remain fully editable after loading, allowing the user to update details freely.
+  - An explicit "Save / Update Customer in DB" action allows saving edited customer info directly, and invoice saving automatically updates customer records.
+- **Customer Fields**:
+  - Customer name
+  - Address
+  - GSTIN
+  - PAN
+  - State (default "Tamilnadu")
+  - State code (default "33")
+  - Phone
+  - Email
 
 ---
 
@@ -709,6 +708,8 @@ The purpose is to test:
 - PDF layout
 - page behavior
 
+*(Note: The "Load Prototype Test Suite Data" button is exclusively enabled for local developer testing. In packaged production builds — Windows `.exe` and macOS `.app` bundles — this button is automatically omitted from the user interface).*
+
 Do not build customer master, product master, advanced reporting, backup, or other secondary functionality in Task 1.
 
 ---
@@ -853,8 +854,13 @@ A simple backup mechanism should allow the user to copy/export the SQLite databa
 
 Produce:
 
-- Windows installer
-- macOS application
+- Windows installer (`.exe`)
+- macOS application (`.app` bundle)
+
+Packaging rules:
+- Automatically detects frozen runtime (`sys.frozen`) and omits developer-only testing controls such as the "Load Prototype Test Suite Data" button.
+- Bundles all Jinja2 HTML templates and assets.
+- Preserves external SQLite database selection outside bundle/dmg.
 
 Test on real target machines.
 

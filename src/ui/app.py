@@ -48,6 +48,10 @@ def main(page: ft.Page):
         invoice = Invoice(
             invoice_number=customer_comp.get_invoice_number(),
             invoice_date=customer_comp.get_invoice_date(),
+            po_number=customer_comp.get_po_number(),
+            po_date=customer_comp.get_po_date(),
+            invoice_type=customer_comp.get_invoice_type(),
+            terms_of_payment=customer_comp.get_terms_of_payment(),
             company=company_settings,
             customer=customer,
             items=items,
@@ -55,11 +59,15 @@ def main(page: ft.Page):
         calculate_invoice(invoice)
         return invoice
 
-    def on_form_change():
+    def on_form_change(e=None):
         invoice = build_current_invoice()
         totals_comp.update_totals(invoice)
 
-    customer_comp = CustomerFormComponent(on_form_change)
+    customer_comp = CustomerFormComponent(
+        on_form_change,
+        on_search_customer=repo.search_customers,
+        on_save_customer=repo.save_customer,
+    )
     item_table_comp = ItemTableComponent(on_form_change)
 
     # Initialize with next sequential number (while remaining editable by user)
@@ -71,6 +79,10 @@ def main(page: ft.Page):
         item_table_comp.reset()
         on_form_change()
         action_comp.set_status(f"Started fresh invoice #{next_num}")
+        try:
+            page.update()
+        except RuntimeError:
+            pass
 
     def handle_save_draft():
         try:
@@ -97,6 +109,28 @@ def main(page: ft.Page):
         except Exception as e:
             action_comp.set_status(f"Error generating PDF: {e}", is_error=True)
 
+    def handle_export_3_copies():
+        try:
+            from copy import deepcopy
+            base_invoice = build_current_invoice()
+            clean_num = base_invoice.invoice_number.replace("/", "_").replace("\\", "_")
+            if not clean_num:
+                clean_num = "draft_invoice"
+            pdf_dir = config_service.get_pdf_export_dir()
+            os.makedirs(pdf_dir, exist_ok=True)
+            output_pdf = os.path.join(pdf_dir, f"Invoice_{clean_num}_3_copies.pdf")
+
+            copies = []
+            for c_type in ["Original", "Duplicate", "Transport"]:
+                inv_copy = deepcopy(base_invoice)
+                inv_copy.invoice_type = c_type
+                copies.append(inv_copy)
+
+            pdf_gen.generate_pdf(base_invoice, output_pdf, copies=copies)
+            action_comp.set_status(f"3-copy PDF (Original, Duplicate, Transport) generated at: {output_pdf}")
+        except Exception as e:
+            action_comp.set_status(f"Error generating 3-copy PDF: {e}", is_error=True)
+
     def handle_print_invoice():
         try:
             invoice = build_current_invoice()
@@ -116,6 +150,7 @@ def main(page: ft.Page):
     action_comp = ActionPanelComponent(
         on_save_draft=handle_save_draft,
         on_export_pdf=handle_export_pdf,
+        on_export_3_copies=handle_export_3_copies,
         on_print=handle_print_invoice,
         on_new_invoice=handle_new_invoice,
     )
@@ -137,7 +172,15 @@ def main(page: ft.Page):
         inv = repo.get_invoice_by_number(invoice_number)
         if not inv:
             return
-        customer_comp.load_customer(inv.customer, inv.invoice_number, inv.invoice_date)
+        customer_comp.load_customer(
+            inv.customer,
+            inv.invoice_number,
+            inv.invoice_date,
+            po_number=inv.po_number,
+            po_date=inv.po_date,
+            invoice_type=inv.invoice_type,
+            terms_of_payment=inv.terms_of_payment,
+        )
         item_table_comp.load_items(inv.items)
         on_form_change()
 

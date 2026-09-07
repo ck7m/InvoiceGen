@@ -1,3 +1,5 @@
+import os
+import sys
 import flet as ft
 from decimal import Decimal, InvalidOperation
 from typing import List, Callable
@@ -23,30 +25,38 @@ class ItemRowControl(ft.Container):
         self.txt_batch = ft.TextField(
             value=item.batch_number,
             dense=True,
-            width=70,
-            hint_text="Batch",
+            width=85,
+            hint_text="Serial No",
             on_change=self._handle_change,
         )
         self.txt_hsn = ft.TextField(
             value=item.hsn_sac,
             dense=True,
-            width=85,
+            width=80,
             hint_text="HSN/SAC",
             on_change=self._handle_change,
         )
+        qty_val = "" if item.quantity in (Decimal("0.00"), Decimal("0")) else str(item.quantity)
         self.txt_qty = ft.TextField(
-            value=str(item.quantity),
+            value=qty_val,
+            hint_text="1.00",
             dense=True,
             width=65,
             text_align=ft.TextAlign.RIGHT,
-            on_change=self._handle_change,
+            on_focus=self._handle_qty_focus,
+            on_blur=self._handle_qty_blur,
+            on_change=self._handle_qty_change,
         )
+        rate_val = "" if item.rate == 0 else str(item.rate)
         self.txt_rate = ft.TextField(
-            value=str(item.rate),
+            value=rate_val,
+            hint_text="0.00",
             dense=True,
             width=90,
             text_align=ft.TextAlign.RIGHT,
-            on_change=self._handle_change,
+            on_focus=self._handle_rate_focus,
+            on_blur=self._handle_rate_blur,
+            on_change=self._handle_rate_change,
         )
         self.txt_cgst = ft.TextField(
             value=str(item.cgst_percent),
@@ -113,7 +123,7 @@ class ItemRowControl(ft.Container):
             return Decimal(default)
 
     def update_calculations(self):
-        qty = self.parse_decimal(self.txt_qty.value, "0.00")
+        qty = self.parse_decimal(self.txt_qty.value, "1.00" if not (self.txt_qty.value or "").strip() else "0.00")
         rate = self.parse_decimal(self.txt_rate.value, "0.00")
         cgst_pct = self.parse_decimal(self.txt_cgst.value, "9.00")
         sgst_pct = self.parse_decimal(self.txt_sgst.value, "9.00")
@@ -127,6 +137,73 @@ class ItemRowControl(ft.Container):
         self.lbl_sgst_amt.value = f"₹{sgst_amt:.2f}"
         self.lbl_amount.value = f"₹{amount_with_tax:.2f}"
 
+    def _handle_qty_focus(self, e):
+        if self.txt_qty.value in ["1.00", "1", "1.0", "0.00", "0", "0.0"]:
+            self.txt_qty.value = ""
+            try:
+                if self.txt_qty.page:
+                    self.txt_qty.page.update()
+            except Exception:
+                pass
+
+    def _handle_qty_blur(self, e):
+        if not (self.txt_qty.value or "").strip():
+            self.txt_qty.value = "1.00"
+            try:
+                if self.txt_qty.page:
+                    self.txt_qty.page.update()
+            except Exception:
+                pass
+        self._handle_change(e)
+
+    def _handle_qty_change(self, e):
+        val = self.txt_qty.value or ""
+        if (val.startswith("1.00") or val.startswith("0.00")) and len(val) > 4:
+            self.txt_qty.value = val[4:]
+            try:
+                if self.txt_qty.page:
+                    self.txt_qty.page.update()
+            except Exception:
+                pass
+        elif val.startswith("0") and len(val) > 1 and not val.startswith("0."):
+            self.txt_qty.value = val.lstrip("0") or "0"
+            try:
+                if self.txt_qty.page:
+                    self.txt_qty.page.update()
+            except Exception:
+                pass
+        self._handle_change(e)
+
+    def _handle_rate_focus(self, e):
+        if self.txt_rate.value in ["0.00", "0", "0.0"]:
+            self.txt_rate.value = ""
+            try:
+                if self.txt_rate.page:
+                    self.txt_rate.page.update()
+            except Exception:
+                pass
+
+    def _handle_rate_blur(self, e):
+        self._handle_change(e)
+
+    def _handle_rate_change(self, e):
+        val = self.txt_rate.value or ""
+        if val.startswith("0.00") and len(val) > 4:
+            self.txt_rate.value = val[4:]
+            try:
+                if self.txt_rate.page:
+                    self.txt_rate.page.update()
+            except Exception:
+                pass
+        elif val.startswith("0") and len(val) > 1 and not val.startswith("0."):
+            self.txt_rate.value = val.lstrip("0") or "0"
+            try:
+                if self.txt_rate.page:
+                    self.txt_rate.page.update()
+            except Exception:
+                pass
+        self._handle_change(e)
+
     def _handle_change(self, e):
         self.update_calculations()
         try:
@@ -137,7 +214,7 @@ class ItemRowControl(ft.Container):
         self.on_change_callback()
 
     def get_invoice_item(self) -> InvoiceItem:
-        qty = self.parse_decimal(self.txt_qty.value, "0.00")
+        qty = self.parse_decimal(self.txt_qty.value, "1.00")
         rate = self.parse_decimal(self.txt_rate.value, "0.00")
         cgst_pct = self.parse_decimal(self.txt_cgst.value, "9.00")
         sgst_pct = self.parse_decimal(self.txt_sgst.value, "9.00")
@@ -166,8 +243,8 @@ class ItemTableComponent(ft.Container):
                 controls=[
                     ft.Container(ft.Text("#", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD), width=25),
                     ft.Container(ft.Text("Description of Goods", weight=ft.FontWeight.BOLD), expand=True),
-                    ft.Container(ft.Text("Batch", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD), width=70),
-                    ft.Container(ft.Text("HSN/SAC", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD), width=85),
+                    ft.Container(ft.Text("Serial No", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD), width=85),
+                    ft.Container(ft.Text("HSN/SAC", text_align=ft.TextAlign.CENTER, weight=ft.FontWeight.BOLD), width=80),
                     ft.Container(ft.Text("Qty", text_align=ft.TextAlign.RIGHT, weight=ft.FontWeight.BOLD), width=65),
                     ft.Container(ft.Text("Rate (₹)", text_align=ft.TextAlign.RIGHT, weight=ft.FontWeight.BOLD), width=90),
                     ft.Container(ft.Text("CGST%", text_align=ft.TextAlign.RIGHT, weight=ft.FontWeight.BOLD), width=60),
@@ -192,18 +269,27 @@ class ItemTableComponent(ft.Container):
             on_click=lambda _: self.add_row(),
         )
 
-        btn_load_proto = ft.OutlinedButton(
+        is_frozen = getattr(sys, "frozen", False) or os.environ.get("INVOICEGEN_ENV", "").lower() in ("production", "prod")
+        self.btn_load_proto = ft.OutlinedButton(
             "Load Prototype Test Suite Data",
             icon=ft.Icons.SCIENCE,
+            visible=not is_frozen,
             on_click=lambda _: self.load_prototype_data(),
         )
+
+        action_controls = [btn_add]
+        if not is_frozen:
+            action_controls.append(self.btn_load_proto)
 
         super().__init__(
             content=ft.Column(
                 controls=[
                     headers,
                     self.rows_column,
-                    ft.Row([btn_add, btn_load_proto], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    ft.Row(
+                        action_controls,
+                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN if len(action_controls) > 1 else ft.MainAxisAlignment.START,
+                    ),
                 ],
                 spacing=10,
             ),
@@ -305,6 +391,11 @@ class ItemTableComponent(ft.Container):
         self.rows.clear()
         self.rows_column.controls.clear()
         self.add_row()
+        try:
+            if self.page:
+                self.page.update()
+        except RuntimeError:
+            pass
 
     def get_items(self) -> List[InvoiceItem]:
         return [row.get_invoice_item() for row in self.rows]

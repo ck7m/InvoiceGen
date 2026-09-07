@@ -6,11 +6,13 @@ class ActionPanelComponent(ft.Container):
         self,
         on_save_draft: Callable,
         on_export_pdf: Callable,
+        on_export_3_copies: Callable = None,
         on_print: Callable = None,
         on_new_invoice: Callable = None,
     ):
         self.on_save_draft = on_save_draft
         self.on_export_pdf = on_export_pdf
+        self.on_export_3_copies = on_export_3_copies
         self.on_print = on_print
         self.on_new_invoice = on_new_invoice
 
@@ -36,6 +38,16 @@ class ActionPanelComponent(ft.Container):
             on_click=lambda _: self.on_export_pdf(),
         )
 
+        btn_pdf_3 = ft.FilledButton(
+            "Export 3 Copies",
+            icon=ft.Icons.COPY_ALL,
+            style=ft.ButtonStyle(
+                bgcolor=ft.Colors.TEAL_700,
+                color=ft.Colors.WHITE,
+            ),
+            on_click=lambda _: self.on_export_3_copies() if self.on_export_3_copies else None,
+        )
+
         btn_print = ft.FilledButton(
             "Print",
             icon=ft.Icons.PRINT,
@@ -46,9 +58,18 @@ class ActionPanelComponent(ft.Container):
             on_click=lambda _: self.on_print() if self.on_print else None,
         )
 
-        self.txt_status = ft.Text("", size=12, color=ft.Colors.GREEN_800, weight=ft.FontWeight.BOLD)
+        self.txt_status = ft.Text(
+            "",
+            size=12,
+            color=ft.Colors.GREEN_800,
+            weight=ft.FontWeight.BOLD,
+            no_wrap=False,
+            expand=True,
+        )
 
         action_buttons = [btn_new, btn_save, btn_pdf]
+        if self.on_export_3_copies:
+            action_buttons.append(btn_pdf_3)
         if self.on_print:
             action_buttons.append(btn_print)
 
@@ -56,7 +77,7 @@ class ActionPanelComponent(ft.Container):
             content=ft.Row(
                 controls=[
                     self.txt_status,
-                    ft.Row(action_buttons, spacing=10),
+                    ft.Row(action_buttons, spacing=10, wrap=False),
                 ],
                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,

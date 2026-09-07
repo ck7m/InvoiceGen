@@ -19,7 +19,7 @@ class CompanySettings:
     branch: str = "Main Branch, Guntur"
     ifsc: str = "SBIN0001234"
     declaration: str = "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct."
-    authorised_signatory: str = "For Sai Krishna Networks"
+    authorised_signatory: str = "Authorised Signatory"
 
 @dataclass
 class Customer:
@@ -55,6 +55,10 @@ class InvoiceItem:
 class Invoice:
     invoice_number: str = ""
     invoice_date: str = ""
+    po_number: str = ""
+    po_date: str = ""
+    invoice_type: str = "Original"
+    terms_of_payment: str = "100% Advance"
     company: CompanySettings = field(default_factory=CompanySettings)
     customer: Customer = field(default_factory=Customer)
     items: List[InvoiceItem] = field(default_factory=list)

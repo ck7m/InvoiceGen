@@ -9,12 +9,12 @@ class PDFGenerator:
     def __init__(self):
         self.renderer = InvoiceDocumentRenderer()
 
-    def generate_pdf(self, invoice: Invoice, output_path: str) -> str:
+    def generate_pdf(self, invoice: Invoice, output_path: str, copies: list = None) -> str:
         """
         Generate A4 PDF from Invoice model.
         Uses WeasyPrint as primary engine, falls back to xhtml2pdf if WeasyPrint fails.
         """
-        html_content = self.renderer.render_html(invoice)
+        html_content = self.renderer.render_html(invoice, copies=copies)
         
         # Try WeasyPrint first
         try:
